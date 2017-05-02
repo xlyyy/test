@@ -1,0 +1,163 @@
+<?xml version="1.0"?>
+<project basedir="." default="help" name="capinfo">
+	<property environment="env" />
+
+	<!-- 项目名称 -->
+	<property name="project.name" value="service-transaction-message" />
+
+	<!-- 脚本路径 -->
+	<property name="script.name" value="service-user.sh" />
+
+	<!-- maven2的根目录 -->
+	<property name="maven.home" value="${env.M2_HOME}" />
+	<!--运行时所有的jar包存放的目录 -->
+	<property name="dir.runtime-lib" value="target\runtime-lib" />
+	<!--测试时或中间件所有的jar包存放的目录 -->
+	<property name="remote.path" value="/root/services" />
+
+	<!-- 远程地址 -->
+	<property name="dir.lib" value="target\lib" />
+	<!--服务器地址-->
+	<property name="host.name" value="xxx" />
+	<!--服务器用户名-->
+	<property name="host.username" value="xxx" />
+	<!--服务器密码-->
+	<property name="host.password" value="xxx@xxx" />
+	<!--休眠时间-->
+	<property name="sleep.time" value="2" />
+	<!-- 打包 -->
+	<target name="mvn.package">
+		<echo message="打包" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" package -Dmaven.test.skip=true" />
+		</exec>
+	</target>
+	<!-- 远程发布 -->
+	<target name="dubbo.remote-publish" depends="mvn.package">
+		<echo message="远程发布${project.name}重启服务" />
+		<scp todir="${host.username}:${host.password}@${host.name}:${remote.path}" file="${basedir}/target/${project.name}.jar" trust="true" />
+		<scp todir="${host.username}:${host.password}@${host.name}:${remote.path}" file="${basedir}/${script.name}" trust="true" />
+		<echo message="查看发布${project.name}是否成功" />
+		<sshexec host="${host.name}" username="${host.username}" password="${host.password}" command="ls -l ${remote.path}" trust="true" failonerror="true" />
+		<echo message="重启${project.name}应用程序" />
+		<sshexec host="${host.name}" username="${host.username}" password="${host.password}" command="chmod +x ${remote.path}/${script.name};${remote.path}/${script.name}" trust="true" failonerror="true" />
+	</target>
+	<!-- 本地发布 -->
+	<target name="dubbo.localhost-publish" depends="mvn.package">
+		<echo message="${project.name}-服务本地发布 " />
+		<java jar="${basedir}/target/${project.name}.jar" fork="true" />
+	</target>
+	<target name="mvn.package-offline">
+		<echo message="离线打包" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" package -o -Dmaven.test.skip=true" />
+		</exec>
+	</target>
+
+	<target name="mvn.site">
+		<echo message="生成站点" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" site -U " />
+		</exec>
+	</target>
+	<target name="mvn.install">
+		<echo message="将jar包发布到本地库中,将会先执行打包(mvn package)的操作" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" install -Dmaven.test.skip=true" />
+		</exec>
+	</target>
+	<!-- 更新snapshot的jar包 -->
+	<target name="mvn.update.snapshot">
+		<echo message="从maven服务器里更新snapshot的jar包" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" dependency:tree -q -U" />
+		</exec>
+	</target>
+	<target name="mvn.dependency:tree">
+		<echo message="分析出pom.xml的关系" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" dependency:tree -e -U" />
+		</exec>
+	</target>
+	<!-- 发布 -->
+	<target name="mvn.deploy">
+		<echo message="发布jar包到远程的maven服务器中,### 注意:用户和密码配置在setting.xml中" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" deploy -e -Dmaven.test.skip=true" />
+		</exec>
+	</target>
+	<target name="mvn.validate">
+		<echo message="验证工程是否正确，所有需要的资源是否可用" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" validate -e -Dmaven.test.skip=true" />
+		</exec>
+	</target>
+	<target name="mvn.verify">
+		<echo message="运行任何检查，验证包是否有效且达到质量标准" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" verify -e -Dmaven.test.skip=true" />
+		</exec>
+	</target>
+	<target name="mvn.findbugs:findbugs">
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" findbugs:findbugs -e" />
+		</exec>
+	</target>
+	<target name="copy.jar.to.runtime-lib">
+		<echo message="开始根据pom.xml配置文件复制运行时所需的jar包到target/runtime-lib目录中,MAVEN_HOME为[${maven.home}]" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" dependency:copy-dependencies -U -DoutputDirectory=${dir.runtime-lib} -DincludeScope=runtime -e" />
+		</exec>
+		<echo message="开始根据pom.xml配置文件复制测试或中间件所提供的jar包到target/lib目录中,MAVEN_HOME为[${maven.home}]" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" dependency:copy-dependencies -U -DoutputDirectory=${dir.lib} -DexcludeScope=runtime" />
+		</exec>
+	</target>
+	<target name="help">
+		<echo message="帮助" />
+	</target>
+	<target name="ci">
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" findbugs:findbugs" />
+		</exec>
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" checkstyle:checkstyle" />
+		</exec>
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" pmd:pmd pmd:cpd" />
+		</exec>
+	</target>
+
+	<!-- 关闭dubbo服务(20880端口) -->
+	<target name="dubbo.kill-windows-20880">
+		<echo message="请提前配置好本地环境变量"/>
+		<exec executable="kill_dubbo_port_param.bat">
+			<arg line=" 20880" />
+		</exec>
+	</target>
+
+	<!-- 下载所有jar包的源代码 -->
+	<target name="mvn.download-sources">
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" dependency:sources -Dsilent=true -DdownloadSources=true" />
+		</exec>
+	</target>
+	<target name="mvn.sonar">
+		<echo message="发布代码质量检测,需在maven的setting文件中配置好sonr账户与密码" />
+		<exec executable="${maven.home}\bin\mvn.cmd">
+			<arg line=" sonar:sonar" />
+		</exec>
+	</target>
+	<!-- 更新snapshot的jar包 -->
+	<target name="clean-notFinish-jar-and-pom">
+		<echo message=" delete ${user.home}\.m2\**\*jar.lastUpdated">
+		</echo>
+		<delete>
+			<fileset dir="${user.home}/.m2">
+				<include name="**/*.pom.lastUpdated" />
+				<include name="**/*.jar.lastUpdated" />
+				<include name="**/resolver-status.properties" />
+			</fileset>
+		</delete>
+	</target>
+</project>
